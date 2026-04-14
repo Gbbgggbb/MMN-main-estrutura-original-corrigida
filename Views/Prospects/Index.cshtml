@@ -1,0 +1,357 @@
+@model DashboardViewModel
+@{
+    var openChecklistId = ViewBag.OpenChecklistId as string ?? string.Empty;
+}
+
+<section class="hero-card">
+    <div>
+        <p class="eyebrow">Gestao comercial para MMN</p>
+        <h2>Seu funil de prospectos em um unico lugar</h2>
+        <p>Cadastre novos contatos, acompanhe o status de cada conversa e mantenha o proximo follow-up sempre visivel.</p>
+    </div>
+
+    <a class="btn btn-primary btn-lg" asp-action="Create">Novo prospecto</a>
+</section>
+
+<section class="stats-grid">
+    <article class="stat-card">
+        <span>Total</span>
+        <strong data-stat="total">0</strong>
+        <small>Prospectos ativos no navegador</small>
+    </article>
+    <article class="stat-card">
+        <span>Quentes</span>
+        <strong data-stat="hot">0</strong>
+        <small>Alta chance de fechar</small>
+    </article>
+    <article class="stat-card">
+        <span>Clientes</span>
+        <strong data-stat="customers">0</strong>
+        <small>Clientes e preferenciais</small>
+    </article>
+    <article class="stat-card">
+        <span>Consultores</span>
+        <strong data-stat="consultants">0</strong>
+        <small>Base de consultores ativa</small>
+    </article>
+</section>
+
+<section class="panel-grid" id="prioritarios">
+    <article class="panel-card">
+        <div class="panel-header">
+            <h3>Proximos contatos</h3>
+            <span>Agenda rapida</span>
+        </div>
+        <div class="stack-list" data-upcoming-list></div>
+        <p class="empty-state d-none" data-upcoming-empty>Nenhum contato pendente no momento.</p>
+    </article>
+
+    <article class="panel-card">
+        <div class="panel-header">
+            <h3>Contato prioritario</h3>
+            <span>Prazos acabando</span>
+        </div>
+        <div class="stack-list" data-priority-list></div>
+        <p class="empty-state d-none" data-priority-empty>Nenhum cliente ou prospecto com prazo critico.</p>
+    </article>
+</section>
+
+<section class="panel-grid">
+    <article class="panel-card">
+        <div class="panel-header">
+            <h3>Novos prospectos</h3>
+            <span>Ultimos cadastros</span>
+        </div>
+
+        <div class="stack-list" data-recent-list></div>
+        <p class="empty-state d-none" data-recent-empty>Nenhum prospecto cadastrado ainda.</p>
+    </article>
+</section>
+
+<section class="panel-card">
+    <div class="panel-header">
+        <h3>Pipeline de prospectos</h3>
+        <span>Controle operacional</span>
+    </div>
+
+    <div class="prospect-cards" data-pipeline-list></div>
+    <p class="empty-state d-none" data-pipeline-empty>Nenhum prospecto cadastrado ainda.</p>
+</section>
+
+@section Scripts {
+    <script>
+        (function () {
+            let openChecklistId = "@openChecklistId";
+            const flashElement = document.querySelector("[data-client-flash]");
+
+            function showFlash(message) {
+                if (!flashElement) {
+                    return;
+                }
+
+                flashElement.textContent = message;
+                flashElement.classList.remove("d-none");
+            }
+
+            function checklistEditor(prospect) {
+                const rows = prospect.checklistItems.map(function (item, index) {
+                    return `
+                        <div class="dashboard-checklist-row">
+                            <input type="checkbox" class="form-check-input" data-checklist-completed data-index="${index}" ${item.isCompleted ? "checked" : ""} />
+                            <input type="text" class="form-control" data-checklist-title data-index="${index}" value="${MMNProspects.escapeHtml(item.title)}" placeholder="Digite o nome da etapa" />
+                            <button type="button" class="btn btn-sm btn-outline-danger" data-remove-checklist-item data-index="${index}">Remover</button>
+                        </div>`;
+                }).join("");
+
+                return `
+                    <form class="dashboard-checklist-form" data-checklist-editor data-prospect-id="${prospect.id}">
+                        <div class="dashboard-checklist-list" data-checklist-list>
+                            ${rows}
+                        </div>
+                        <div class="dashboard-checklist-actions">
+                            <button type="button" class="btn btn-sm btn-outline-dark" data-add-checklist-item>Adicionar item</button>
+                            <button type="submit" class="btn btn-sm btn-primary">Salvar checklist</button>
+                        </div>
+                    </form>`;
+            }
+
+            function listRow(prospect, options) {
+                return `
+                    <div class="${options.rowClass}">
+                        <div>
+                            <strong>${MMNProspects.escapeHtml(prospect.fullName)}</strong>
+                            <p>${options.subtitle}</p>
+                            <button type="button" class="checklist-progress checklist-toggle" data-checklist-toggle="${prospect.id}" aria-expanded="${options.open ? "true" : "false"}">
+                                <span>${MMNProspects.completedCount(prospect)}/${MMNProspects.totalCount(prospect)} etapas concluidas</span>
+                            </button>
+                            <div class="dashboard-checklist ${options.open ? "is-open" : ""}" id="checklist-${prospect.id}">
+                                ${checklistEditor(prospect)}
+                            </div>
+                        </div>
+                        <div class="text-end mobile-end">
+                            ${options.meta}
+                        </div>
+                    </div>`;
+            }
+
+            function pipelineCard(prospect) {
+                const open = openChecklistId === prospect.id;
+
+                return `
+                    <article class="prospect-card">
+                        <div class="prospect-card-top">
+                            <div>
+                                <strong>${MMNProspects.escapeHtml(prospect.fullName)}</strong>
+                            <div class="table-subtitle">${MMNProspects.escapeHtml(prospect.phone)}</div>
+                        </div>
+                            <span class="temperature-chip ${temperatureClass(prospect.temperature)}">${MMNProspects.escapeHtml(MMNProspects.temperatureLabels[prospect.temperature])}</span>
+                        </div>
+
+                        <div class="prospect-meta">
+                            <span>${MMNProspects.escapeHtml(prospect.source || "-")}</span>
+                            <span>${MMNProspects.escapeHtml(MMNProspects.statusLabels[prospect.status])}</span>
+                            <span>Contato: ${MMNProspects.formatDate(prospect.nextContactDate)}</span>
+                            <button type="button" class="checklist-progress checklist-toggle" data-checklist-toggle="${prospect.id}" aria-expanded="${open ? "true" : "false"}">
+                                <span>${MMNProspects.completedCount(prospect)}/${MMNProspects.totalCount(prospect)} etapas concluidas</span>
+                            </button>
+                        </div>
+
+                        <div class="dashboard-checklist ${open ? "is-open" : ""}" id="checklist-${prospect.id}">
+                            ${checklistEditor(prospect)}
+                        </div>
+
+                        <div class="actions-cell">
+                            <a class="btn btn-sm btn-outline-dark" href="/Prospects/Edit/${prospect.id}">Editar</a>
+                            <button type="button" class="btn btn-sm btn-outline-danger" data-delete-prospect="${prospect.id}">Excluir</button>
+                        </div>
+                    </article>`;
+            }
+
+            function temperatureClass(temperature) {
+                return temperature === 3 ? "hot" : temperature === 2 ? "warm" : "cold";
+            }
+
+            function dueText(prospect) {
+                const today = new Date();
+                today.setHours(0, 0, 0, 0);
+                const dueDate = MMNProspects.parseLocalDate(prospect.nextContactDate);
+                dueDate.setHours(0, 0, 0, 0);
+
+                if (dueDate < today) {
+                    return `Atrasado desde ${MMNProspects.formatDate(prospect.nextContactDate)}`;
+                }
+
+                if (dueDate.getTime() === today.getTime()) {
+                    return "Vence hoje";
+                }
+
+                return `Vence em ${MMNProspects.formatDate(prospect.nextContactDate)}`;
+            }
+
+            function priorityClass(prospect) {
+                const today = new Date();
+                today.setHours(0, 0, 0, 0);
+                const dueDate = MMNProspects.parseLocalDate(prospect.nextContactDate);
+                dueDate.setHours(0, 0, 0, 0);
+
+                if (dueDate < today) {
+                    return "priority-row overdue";
+                }
+
+                if (dueDate.getTime() === today.getTime()) {
+                    return "priority-row due-today";
+                }
+
+                return "priority-row";
+            }
+
+            function renderCollection(container, emptyState, html) {
+                container.innerHTML = html;
+                emptyState.classList.toggle("d-none", Boolean(html));
+            }
+
+            function render() {
+                const dashboard = MMNProspects.getDashboard();
+
+                document.querySelector("[data-stat='total']").textContent = dashboard.totalProspects;
+                document.querySelector("[data-stat='hot']").textContent = dashboard.hotProspects;
+                document.querySelector("[data-stat='customers']").textContent = dashboard.customers;
+                document.querySelector("[data-stat='consultants']").textContent = dashboard.consultants;
+
+                renderCollection(
+                    document.querySelector("[data-upcoming-list]"),
+                    document.querySelector("[data-upcoming-empty]"),
+                    dashboard.upcomingContacts.map(function (prospect) {
+                        return listRow(prospect, {
+                            rowClass: "list-row",
+                            open: openChecklistId === prospect.id,
+                            subtitle: `${MMNProspects.escapeHtml(prospect.phone)} | ${MMNProspects.escapeHtml(prospect.city || "-")}`,
+                            meta: `
+                                <span class="status-chip">${MMNProspects.escapeHtml(MMNProspects.statusLabels[prospect.status])}</span>
+                                <span class="temperature-chip ${temperatureClass(prospect.temperature)}">${MMNProspects.escapeHtml(MMNProspects.temperatureLabels[prospect.temperature])}</span>
+                                <p>${MMNProspects.formatDate(prospect.nextContactDate)}</p>`
+                        });
+                    }).join("")
+                );
+
+                renderCollection(
+                    document.querySelector("[data-priority-list]"),
+                    document.querySelector("[data-priority-empty]"),
+                    dashboard.priorityContacts.map(function (prospect) {
+                        return listRow(prospect, {
+                            rowClass: priorityClass(prospect),
+                            open: openChecklistId === prospect.id,
+                            subtitle: `${MMNProspects.escapeHtml(MMNProspects.statusLabels[prospect.status])} | ${MMNProspects.escapeHtml(prospect.phone)}`,
+                            meta: `
+                                <span class="temperature-chip ${temperatureClass(prospect.temperature)}">${MMNProspects.escapeHtml(MMNProspects.temperatureLabels[prospect.temperature])}</span>
+                                <p>${dueText(prospect)}</p>`
+                        });
+                    }).join("")
+                );
+
+                renderCollection(
+                    document.querySelector("[data-recent-list]"),
+                    document.querySelector("[data-recent-empty]"),
+                    dashboard.recentProspects.map(function (prospect) {
+                        return listRow(prospect, {
+                            rowClass: "list-row",
+                            open: openChecklistId === prospect.id,
+                            subtitle: MMNProspects.escapeHtml(prospect.source || "-"),
+                            meta: `
+                                <span class="temperature-chip ${temperatureClass(prospect.temperature)}">${MMNProspects.escapeHtml(MMNProspects.temperatureLabels[prospect.temperature])}</span>
+                                <p>${MMNProspects.formatDateTime(prospect.createdAt)}</p>`
+                        });
+                    }).join("")
+                );
+
+                renderCollection(
+                    document.querySelector("[data-pipeline-list]"),
+                    document.querySelector("[data-pipeline-empty]"),
+                    dashboard.prospects.map(pipelineCard).join("")
+                );
+            }
+
+            document.addEventListener("click", function (event) {
+                const toggle = event.target.closest("[data-checklist-toggle]");
+                if (toggle) {
+                    const id = toggle.getAttribute("data-checklist-toggle");
+                    const container = document.getElementById(`checklist-${id}`);
+                    if (!container) {
+                        return;
+                    }
+
+                    const willOpen = !container.classList.contains("is-open");
+                    openChecklistId = willOpen ? id : "";
+                    container.classList.toggle("is-open");
+                    toggle.setAttribute("aria-expanded", willOpen ? "true" : "false");
+                    return;
+                }
+
+                const addButton = event.target.closest("[data-add-checklist-item]");
+                if (addButton) {
+                    const form = addButton.closest("[data-checklist-editor]");
+                    const list = form.querySelector("[data-checklist-list]");
+                    const rows = list.querySelectorAll(".dashboard-checklist-row");
+                    if (rows.length >= 10) {
+                        return;
+                    }
+
+                    list.insertAdjacentHTML("beforeend", `
+                        <div class="dashboard-checklist-row">
+                            <input type="checkbox" class="form-check-input" data-checklist-completed data-index="${rows.length}" />
+                            <input type="text" class="form-control" data-checklist-title data-index="${rows.length}" placeholder="Digite o nome da etapa" />
+                            <button type="button" class="btn btn-sm btn-outline-danger" data-remove-checklist-item data-index="${rows.length}">Remover</button>
+                        </div>`);
+                    return;
+                }
+
+                const removeButton = event.target.closest("[data-remove-checklist-item]");
+                if (removeButton) {
+                    const form = removeButton.closest("[data-checklist-editor]");
+                    const list = form.querySelector("[data-checklist-list]");
+                    const rows = list.querySelectorAll(".dashboard-checklist-row");
+                    if (rows.length <= 1) {
+                        return;
+                    }
+
+                    removeButton.closest(".dashboard-checklist-row").remove();
+                    return;
+                }
+
+                const deleteButton = event.target.closest("[data-delete-prospect]");
+                if (deleteButton) {
+                    const id = deleteButton.getAttribute("data-delete-prospect");
+                    MMNProspects.deleteProspect(id);
+                    MMNProspects.setFlashMessage("Prospecto removido.");
+                    showFlash("Prospecto removido.");
+                    render();
+                }
+            });
+
+            document.addEventListener("submit", function (event) {
+                const form = event.target.closest("[data-checklist-editor]");
+                if (!form) {
+                    return;
+                }
+
+                event.preventDefault();
+
+                const id = form.getAttribute("data-prospect-id");
+                const checklistItems = Array.from(form.querySelectorAll(".dashboard-checklist-row")).map(function (row) {
+                    return {
+                        title: row.querySelector("[data-checklist-title]")?.value || "",
+                        isCompleted: row.querySelector("[data-checklist-completed]")?.checked || false
+                    };
+                });
+
+                MMNProspects.updateChecklist(id, checklistItems);
+                openChecklistId = id;
+                MMNProspects.setFlashMessage("Checklist atualizada com sucesso.");
+                showFlash("Checklist atualizada com sucesso.");
+                render();
+            });
+
+            render();
+        })();
+    </script>
+}

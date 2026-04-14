@@ -1,0 +1,42 @@
+@model Prospect
+
+<form asp-action="UpdateChecklist" method="post" class="dashboard-checklist-form" data-checklist-editor data-max-items="@ChecklistDefaults.MaxItems">
+    @Html.AntiForgeryToken()
+    <input type="hidden" name="id" value="@Model.Id" />
+
+    <div class="dashboard-checklist-list" data-checklist-list>
+        @for (var i = 0; i < Model.ChecklistItems.Count; i++)
+        {
+            <div class="dashboard-checklist-row">
+                <input type="hidden" name="checklistItems[@i].IsCompleted" value="false" />
+                <input
+                    type="checkbox"
+                    class="form-check-input"
+                    name="checklistItems[@i].IsCompleted"
+                    value="true"
+                    @(Model.ChecklistItems[i].IsCompleted ? "checked" : null) />
+                <input
+                    type="text"
+                    class="form-control"
+                    name="checklistItems[@i].Title"
+                    value="@Model.ChecklistItems[i].Title"
+                    placeholder="Digite o nome da etapa" />
+                <button type="button" class="btn btn-sm btn-outline-danger" data-remove-checklist-item>Remover</button>
+            </div>
+        }
+    </div>
+
+    <div class="dashboard-checklist-actions">
+        <button type="button" class="btn btn-sm btn-outline-dark" data-add-checklist-item>Adicionar item</button>
+        <button type="submit" class="btn btn-sm btn-primary">Salvar checklist</button>
+    </div>
+
+    <template data-checklist-template>
+        <div class="dashboard-checklist-row">
+            <input type="hidden" name="checklistItems[__index__].IsCompleted" value="false" />
+            <input type="checkbox" class="form-check-input" name="checklistItems[__index__].IsCompleted" value="true" />
+            <input type="text" class="form-control" name="checklistItems[__index__].Title" placeholder="Digite o nome da etapa" />
+            <button type="button" class="btn btn-sm btn-outline-danger" data-remove-checklist-item>Remover</button>
+        </div>
+    </template>
+</form>

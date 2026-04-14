@@ -1,0 +1,5 @@
+serviceAccountKey.json
+*-firebase-adminsdk-*.json
+App_Data/
+.artifacts/
+.env

@@ -1,0 +1,219 @@
+@model ProspectFormViewModel
+@{
+    var editProspectId = ViewBag.EditProspectId as string ?? string.Empty;
+}
+
+<section class="form-shell">
+    <div class="panel-card">
+        <div class="panel-header">
+            <h2>@ViewData["Title"]</h2>
+            <span>MVP de cadastro local</span>
+        </div>
+
+        <form class="prospect-form" data-prospect-form data-edit-id="@editProspectId" data-draft-form="prospect">
+            <div class="form-alert text-danger mb-3 d-none" data-form-error></div>
+
+            <div class="form-grid">
+                <div>
+                    <label for="FullName" class="form-label">Nome completo</label>
+                    <input id="FullName" name="FullName" class="form-control" />
+                </div>
+                <div>
+                    <label for="Phone" class="form-label">Telefone</label>
+                    <input id="Phone" name="Phone" class="form-control" />
+                </div>
+                <div>
+                    <label for="Email" class="form-label">E-mail</label>
+                    <input id="Email" name="Email" class="form-control" />
+                </div>
+                <div>
+                    <label for="City" class="form-label">Cidade</label>
+                    <input id="City" name="City" class="form-control" />
+                </div>
+                <div>
+                    <label for="Source" class="form-label">Origem do lead</label>
+                    <input id="Source" name="Source" class="form-control" placeholder="Instagram, indicacao, landing page..." />
+                </div>
+                <div>
+                    <label for="Temperature" class="form-label">Temperatura</label>
+                    <select id="Temperature" name="Temperature" class="form-select" data-temperature-select>
+                        <option value="1">Frio</option>
+                        <option value="2" selected>Morno</option>
+                        <option value="3">Quente</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="Status" class="form-label">Status</label>
+                    <select id="Status" name="Status" class="form-select" data-status-select>
+                        <option value="1" selected>Prospecto</option>
+                        <option value="2">Cliente</option>
+                        <option value="3">Cliente preferencial</option>
+                        <option value="4">Consultor de bem-estar</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="NextContactDate" class="form-label">Proximo contato</label>
+                    <input id="NextContactDate" name="NextContactDate" type="date" class="form-control" />
+                </div>
+            </div>
+
+            <div class="mt-3">
+                <label for="Notes" class="form-label">Observacoes</label>
+                <textarea id="Notes" name="Notes" class="form-control" rows="5" placeholder="Anote dores, objecoes e combinados."></textarea>
+            </div>
+
+            <section class="checklist-shell mt-4">
+                <div class="panel-header">
+                    <h3>Lista de checagem</h3>
+                    <span>Maximo de 10 campos</span>
+                </div>
+
+                <div class="checklist-list" data-checklist-list data-max-items="@ChecklistDefaults.MaxItems"></div>
+
+                <button type="button" class="btn btn-outline-dark mt-3" data-add-checklist-item>Adicionar campo</button>
+            </section>
+
+            <div class="form-actions">
+                <a class="btn btn-outline-dark" asp-action="Index">Voltar</a>
+                <button type="submit" class="btn btn-primary btn-save">Salvar prospecto</button>
+            </div>
+        </form>
+    </div>
+</section>
+
+@section Scripts {
+    <script>
+        (function () {
+            const form = document.querySelector("[data-prospect-form]");
+            const list = document.querySelector("[data-checklist-list]");
+            const addButton = document.querySelector("[data-add-checklist-item]");
+            const errorBox = document.querySelector("[data-form-error]");
+
+            if (!form || !list || !addButton) {
+                return;
+            }
+
+            const editId = form.getAttribute("data-edit-id");
+
+            function createChecklistRow(item) {
+                return `
+                    <div class="checklist-item">
+                        <input type="checkbox" class="form-check-input checklist-check" data-checklist-completed ${item.isCompleted ? "checked" : ""} />
+                        <input class="form-control" data-checklist-title value="${MMNProspects.escapeHtml(item.title)}" placeholder="Digite o nome da etapa" />
+                        <button type="button" class="btn btn-outline-danger btn-sm" data-remove-checklist-item>Remover</button>
+                    </div>`;
+            }
+
+            function renderChecklist(items) {
+                list.innerHTML = items.map(createChecklistRow).join("");
+            }
+
+            function showError(message) {
+                errorBox.textContent = message;
+                errorBox.classList.remove("d-none");
+            }
+
+            function clearError() {
+                errorBox.textContent = "";
+                errorBox.classList.add("d-none");
+            }
+
+            function readChecklist() {
+                return Array.from(list.querySelectorAll(".checklist-item")).map(function (row) {
+                    return {
+                        title: row.querySelector("[data-checklist-title]")?.value || "",
+                        isCompleted: row.querySelector("[data-checklist-completed]")?.checked || false
+                    };
+                });
+            }
+
+            function populateForm(prospect) {
+                form.querySelector("#FullName").value = prospect.fullName || "";
+                form.querySelector("#Phone").value = prospect.phone || "";
+                form.querySelector("#Email").value = prospect.email || "";
+                form.querySelector("#City").value = prospect.city || "";
+                form.querySelector("#Source").value = prospect.source || "";
+                form.querySelector("#Temperature").value = String(prospect.temperature || 2);
+                form.querySelector("#Status").value = String(prospect.status || 1);
+                form.querySelector("#NextContactDate").value = prospect.nextContactDate || "";
+                form.querySelector("#Notes").value = prospect.notes || "";
+                renderChecklist(prospect.checklistItems || MMNProspects.defaultChecklist);
+            }
+
+            addButton.addEventListener("click", function () {
+                const items = list.querySelectorAll(".checklist-item");
+                if (items.length >= 10) {
+                    return;
+                }
+
+                list.insertAdjacentHTML("beforeend", createChecklistRow({ title: "", isCompleted: false }));
+            });
+
+            list.addEventListener("click", function (event) {
+                const removeButton = event.target.closest("[data-remove-checklist-item]");
+                if (!removeButton) {
+                    return;
+                }
+
+                const items = list.querySelectorAll(".checklist-item");
+                if (items.length <= 1) {
+                    return;
+                }
+
+                removeButton.closest(".checklist-item")?.remove();
+            });
+
+            form.addEventListener("keydown", function (event) {
+                if (event.key === "Enter" && event.target.tagName !== "TEXTAREA") {
+                    event.preventDefault();
+                }
+            });
+
+            form.addEventListener("submit", function (event) {
+                event.preventDefault();
+                clearError();
+
+                const fullName = form.querySelector("#FullName").value.trim();
+                const phone = form.querySelector("#Phone").value.trim();
+
+                if (!fullName) {
+                    showError("Informe o nome do prospecto.");
+                    return;
+                }
+
+                MMNProspects.markDraftSaved();
+
+                MMNProspects.upsertProspect({
+                    id: editId || undefined,
+                    fullName: fullName,
+                    phone: phone,
+                    email: form.querySelector("#Email").value.trim(),
+                    city: form.querySelector("#City").value.trim(),
+                    source: form.querySelector("#Source").value.trim(),
+                    temperature: Number(form.querySelector("#Temperature").value || "2"),
+                    status: Number(form.querySelector("#Status").value || "1"),
+                    nextContactDate: form.querySelector("#NextContactDate").value,
+                    notes: form.querySelector("#Notes").value.trim(),
+                    checklistItems: readChecklist()
+                });
+
+                MMNProspects.setFlashMessage(editId ? "Prospecto atualizado com sucesso." : "Prospecto cadastrado com sucesso.");
+                window.location.href = "/Prospects/Index";
+            });
+
+            const existing = editId ? MMNProspects.getProspectById(editId) : null;
+            if (editId && !existing) {
+                showError("Prospecto nao encontrado no armazenamento local deste navegador.");
+                renderChecklist(MMNProspects.defaultChecklist);
+                return;
+            }
+
+            populateForm(existing || {
+                temperature: 2,
+                status: 1,
+                nextContactDate: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
+                checklistItems: MMNProspects.defaultChecklist
+            });
+        })();
+    </script>
+}
